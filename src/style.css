@@ -1,0 +1,42 @@
+here
+/* Asure Enterprises - Main Styling */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f7fb;
+  color: #172033;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+th {
+  background: #e5edf7;
+  color: #172033;
+  font-weight: 700;
+  padding: 12px;
+}
+
+td {
+  color: #172033;
+  background: #ffffff;
+  padding: 12px;
+  border-bottom: 1px solid #d5deea;
+  opacity: 1;
+}
+
+input, select, button {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
