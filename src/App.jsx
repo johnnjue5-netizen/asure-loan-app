@@ -9,7 +9,7 @@ export default function App() {
   async function loadLoans() {
     setLoading(true);
     const { data, error } = await supabase
-      .from('Loans')
+      .from('loans')
       .select('*')
       .order('created_at', { ascending: false });
 
