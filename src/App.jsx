@@ -11,7 +11,7 @@ export default function App() {
     setLoading(true);
 
     const { data, error } = await supabase
-      .from('Loans')
+      from('Loans')
       .select('*')
       .order('id', { ascending: false });
 
