@@ -1,0 +1,45 @@
+
+/* Asure Enterprises - Dashboard Styling */
+
+body {
+  background-color: #f1f5f9;
+  color: #172b4d;
+  font-family: Arial, sans-serif;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  color: #172b4d;
+}
+
+th {
+  background-color: #102a43;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 12px;
+}
+
+td {
+  background-color: #ffffff;
+  color: #172b4d;
+  padding: 12px;
+  border-bottom: 1px solid #cbd5e1;
+  font-weight: 500;
+  opacity: 1;
+}
+
+tr:nth-child(even) td {
+  background-color: #f1f5f9;
+}
+
+input, select, textarea {
+  color: #172b4d;
+  background-color: #ffffff;
+}
+
+button {
+  cursor: pointer;
+  opacity: 1;
+}
