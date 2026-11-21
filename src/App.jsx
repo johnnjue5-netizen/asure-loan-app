@@ -8,20 +8,6 @@ export default function App() {
   const [error, setError] = useState('');
 
   async function loadLoans() {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      from('Loans')
-      .select('*')
-      .order('id', { ascending: false });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setLoans(data || []);
-      setError('');
-    }
-
     setLoading(false);
   }
 
