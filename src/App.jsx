@@ -22,6 +22,9 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetMode, setResetMode] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -30,19 +33,13 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
 
   const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    nationalId: '',
-    customerEmail: '',
-    amount: '',
-    weeks: '4',
-    loanDate: today(),
+    name: '', phone: '', nationalId: '', customerEmail: '',
+    amount: '', weeks: '4', loanDate: today(),
     dueDate: addDays(today(), 7)
   });
 
   const interest = Number(form.amount || 0) * 0.009 *
     Number(form.weeks || 0) * 7;
-
   const total = Number(form.amount || 0) + interest;
   const installment = Number(form.weeks) > 0
     ? total / Number(form.weeks) : 0;
@@ -55,36 +52,77 @@ export default function App() {
     });
 
     const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session);
+      supabase.auth.onAuthStateChange((event, currentSession) => {
+        setSession(currentSession);
+
+        if (event === 'PASSWORD_RECOVERY') {
+          setRecoveryMode(true);
+          setResetMode(false);
+          setMessage('Enter your new password below.');
+          setError('');
+        }
       });
 
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (session) {
+    if (session && !recoveryMode) {
       loadLoans();
     } else {
       setLoans([]);
     }
-  }, [session]);
+  }, [session, recoveryMode]);
 
   async function signIn(e) {
     e.preventDefault();
     setError('');
-
-    if (!supabase) {
-      setError('Supabase is not configured.');
-      return;
-    }
+    setMessage('');
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+      email, password
     });
 
     if (error) setError(error.message);
+  }
+
+  async function requestPasswordReset(e) {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setMessage('Password reset email sent. Check your inbox and follow the link.');
+    }
+  }
+
+  async function updatePassword(e) {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+
+    if (newPassword.length < 8) {
+      setError('Password must contain at least 8 characters.');
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setMessage('Password changed successfully. You can now continue.');
+      setRecoveryMode(false);
+      setNewPassword('');
+    }
   }
 
   async function signOut() {
@@ -97,9 +135,7 @@ export default function App() {
 
     try {
       const { data, error } = await supabase
-        .from('Loans')
-        .select('*')
-        .order('id', { ascending: false });
+        .from('Loans').select('*').order('id', { ascending: false });
 
       if (error) throw error;
 
@@ -154,19 +190,13 @@ export default function App() {
       setMessage(`Loan number ${data} saved successfully!`);
 
       setForm({
-        name: '',
-        phone: '',
-        nationalId: '',
-        customerEmail: '',
-        amount: '',
-        weeks: '4',
-        loanDate: today(),
+        name: '', phone: '', nationalId: '', customerEmail: '',
+        amount: '', weeks: '4', loanDate: today(),
         dueDate: addDays(today(), 7)
       });
 
       setShowForm(false);
       await loadLoans();
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -175,27 +205,17 @@ export default function App() {
   }
 
   const inputStyle = {
-    width: '100%',
-    padding: '12px',
-    marginTop: '5px',
-    marginBottom: '14px',
-    border: '1px solid #aab7c4',
-    borderRadius: '6px',
-    fontSize: '16px',
-    color: '#111',
-    background: '#fff',
-    boxSizing: 'border-box'
+    width: '100%', padding: '12px', marginTop: '5px',
+    marginBottom: '14px', border: '1px solid #aab7c4',
+    borderRadius: '6px', fontSize: '16px',
+    color: '#111', background: '#fff', boxSizing: 'border-box'
   };
 
   const buttonStyle = {
-    padding: '12px 18px',
-    border: 'none',
-    borderRadius: '6px',
-    background: '#075eab',
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: '15px',
-    cursor: 'pointer'
+    padding: '12px 18px', border: 'none',
+    borderRadius: '6px', background: '#075eab',
+    color: 'white', fontWeight: 'bold',
+    fontSize: '15px', cursor: 'pointer'
   };
 
   if (!supabase) {
@@ -204,26 +224,49 @@ export default function App() {
     </main>;
   }
 
+  if (recoveryMode) {
+    return (
+      <main style={{
+        minHeight: '100vh', background: '#edf3f8',
+        display: 'grid', placeItems: 'center', padding: 20
+      }}>
+        <form onSubmit={updatePassword} style={{
+          background: 'white', padding: 25,
+          borderRadius: 12, width: '100%',
+          maxWidth: 380, boxSizing: 'border-box', color: '#111'
+        }}>
+          <h1>Asure Enterprises</h1>
+          <h3>Set New Password</h3>
+          <label>New password</label>
+          <input style={inputStyle}
+            type="password" minLength="8" required
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+          />
+          {error && <p style={{color: '#b00020'}}>{error}</p>}
+          {message && <p style={{color: 'green'}}>{message}</p>}
+          <button style={buttonStyle} type="submit">
+            Update Password
+          </button>
+        </form>
+      </main>
+    );
+  }
+
   if (!session) {
     return (
       <main style={{
-        minHeight: '100vh',
-        background: '#edf3f8',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 20
+        minHeight: '100vh', background: '#edf3f8',
+        display: 'grid', placeItems: 'center', padding: 20
       }}>
-        <form onSubmit={signIn} style={{
-          background: 'white',
-          padding: 25,
-          borderRadius: 12,
-          width: '100%',
-          maxWidth: 380,
-          boxSizing: 'border-box',
-          color: '#111'
-        }}>
+        <form onSubmit={resetMode ? requestPasswordReset : signIn}
+          style={{
+            background: 'white', padding: 25,
+            borderRadius: 12, width: '100%',
+            maxWidth: 380, boxSizing: 'border-box', color: '#111'
+          }}>
           <h1>Asure Enterprises</h1>
-          <h3>Staff Login</h3>
+          <h3>{resetMode ? 'Reset Password' : 'Staff Login'}</h3>
 
           <label>Email address</label>
           <input style={inputStyle}
@@ -232,18 +275,37 @@ export default function App() {
             onChange={e => setEmail(e.target.value)}
           />
 
-          <label>Password</label>
-          <input style={inputStyle}
-            type="password" required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
+          {!resetMode && <>
+            <label>Password</label>
+            <input style={inputStyle}
+              type="password" required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+          </>}
 
-          {error && <p style={{color: 'red'}}>{error}</p>}
+          {error && <p style={{color: '#b00020'}}>{error}</p>}
+          {message && <p style={{color: 'green'}}>{message}</p>}
 
           <button style={buttonStyle} type="submit">
-            Login
+            {resetMode ? 'Send Reset Email' : 'Login'}
           </button>
+
+          <p>
+            <button type="button"
+              onClick={() => {
+                setResetMode(!resetMode);
+                setError('');
+                setMessage('');
+              }}
+              style={{
+                border: 'none', background: 'none',
+                color: '#075eab', cursor: 'pointer',
+                padding: '12px 0', fontSize: '15px'
+              }}>
+              {resetMode ? 'Back to Login' : 'Forgot Password?'}
+            </button>
+          </p>
         </form>
       </main>
     );
@@ -251,106 +313,78 @@ export default function App() {
 
   return (
     <main style={{
-      minHeight: '100vh',
-      padding: 18,
-      background: '#edf3f8',
-      color: '#17212b',
+      minHeight: '100vh', padding: 18,
+      background: '#edf3f8', color: '#17212b',
       fontFamily: 'Arial, sans-serif'
     }}>
       <header style={{
-        background: '#073763',
-        color: 'white',
-        padding: 20,
-        borderRadius: 10
+        background: '#073763', color: 'white',
+        padding: 20, borderRadius: 10
       }}>
         <h1>Asure Enterprises</h1>
         <h2>Loan Management Dashboard</h2>
         <p>Secure loan management system</p>
-        <button onClick={signOut} style={{
-          ...buttonStyle,
-          background: '#a83232'
-        }}>Sign out</button>
+        <button onClick={signOut}
+          style={{...buttonStyle, background: '#a83232'}}>
+          Sign out
+        </button>
       </header>
 
       {message && <p style={{color: 'green'}}>{message}</p>}
       {error && <p style={{color: '#b00020'}}>{error}</p>}
 
       <section style={{
-        display: 'flex',
-        gap: 10,
-        flexWrap: 'wrap',
-        marginTop: 20
+        display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 20
       }}>
         <button style={buttonStyle}
           onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Close Form' : '+ Add New Loan'}
         </button>
-
-        <button style={{
-          ...buttonStyle,
-          background: '#237447'
-        }} onClick={loadLoans}>
+        <button style={{...buttonStyle, background: '#237447'}}
+          onClick={loadLoans}>
           Refresh Loans
         </button>
       </section>
 
       {showForm && (
         <form onSubmit={addLoan} style={{
-          background: 'white',
-          padding: 20,
-          borderRadius: 10,
-          marginTop: 20,
-          maxWidth: 650,
-          boxSizing: 'border-box'
+          background: 'white', padding: 20, borderRadius: 10,
+          marginTop: 20, maxWidth: 650, boxSizing: 'border-box'
         }}>
           <h2>New Customer and Loan</h2>
-
           <label>Customer full name *</label>
           <input style={inputStyle} name="name"
-            value={form.name} onChange={updateForm}
-            required />
-
+            value={form.name} onChange={updateForm} required />
           <label>Phone number</label>
           <input style={inputStyle} name="phone"
-            value={form.phone} onChange={updateForm}
-            type="tel" />
-
+            value={form.phone} onChange={updateForm} type="tel" />
           <label>National ID</label>
           <input style={inputStyle} name="nationalId"
             value={form.nationalId} onChange={updateForm} />
-
           <label>Email address</label>
           <input style={inputStyle} name="customerEmail"
             type="email" value={form.customerEmail}
             onChange={updateForm} />
-
           <label>Amount borrowed (KES) *</label>
           <input style={inputStyle} name="amount"
             type="number" min="1" step="0.01"
-            value={form.amount} onChange={updateForm}
-            required />
-
+            value={form.amount} onChange={updateForm} required />
           <label>Repayment period (weeks) *</label>
           <input style={inputStyle} name="weeks"
             type="number" min="1" step="1"
-            value={form.weeks} onChange={updateForm}
-            required />
-
+            value={form.weeks} onChange={updateForm} required />
           <label>Loan date *</label>
           <input style={inputStyle} name="loanDate"
             type="date" value={form.loanDate}
             onChange={updateForm} required />
-
           <label>First repayment date *</label>
           <input style={inputStyle} name="dueDate"
             type="date" value={form.dueDate}
             onChange={updateForm} required />
 
           <section style={{
-            background: '#eaf2fa',
-            padding: 15,
-            borderRadius: 8,
-            marginBottom: 18
+            background: '#eaf2fa', padding: 15,
+            borderRadius: 8, marginBottom: 18
           }}>
             <h3>Loan Calculation</h3>
             <p>Daily interest: 0.9%</p>
@@ -359,32 +393,25 @@ export default function App() {
             <p>Weekly installment: <b>{money(installment)}</b></p>
           </section>
 
-          <button style={buttonStyle}
-            type="submit" disabled={saving}>
+          <button style={buttonStyle} type="submit" disabled={saving}>
             {saving ? 'Saving Loan...' : 'Save New Loan'}
           </button>
         </form>
       )}
 
       <section style={{
-        background: 'white',
-        padding: 16,
-        borderRadius: 10,
-        marginTop: 22
+        background: 'white', padding: 16,
+        borderRadius: 10, marginTop: 22
       }}>
         <h2>Loan Records ({loans.length})</h2>
-
         {loading && <p>Loading loans...</p>}
-
         {!loading && loans.length === 0 &&
           <p>No loan records found yet.</p>}
 
         <div style={{overflowX: 'auto'}}>
           <table style={{
-            width: '100%',
-            minWidth: 750,
-            borderCollapse: 'collapse',
-            color: '#111'
+            width: '100%', minWidth: 750,
+            borderCollapse: 'collapse', color: '#111'
           }}>
             <thead>
               <tr style={{background: '#dce9f5'}}>
@@ -392,41 +419,23 @@ export default function App() {
                   'Total Repayment','Weekly Installment',
                   'Outstanding','Status'].map(item =>
                   <th key={item} style={{
-                    padding: 12,
-                    border: '1px solid #bdc9d5',
-                    textAlign: 'left'
+                    padding: 12, border: '1px solid #bdc9d5',
+                    textAlign: 'left', color: '#111'
                   }}>{item}</th>
                 )}
               </tr>
             </thead>
             <tbody>
               {loans.map(loan => (
-                <tr key={loan.id}>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {loan.id}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {loan.customer?.Full_name || 'Customer'}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {money(loan['Loan-amount'])}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {money(Number(loan['Total_repayment'] || 0) -
-                      Number(loan['Loan-amount'] || 0))}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {money(loan['Total_repayment'])}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {money(loan['Weekly_installment'])}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {money(loan.outstanding_balance)}
-                  </td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>
-                    {loan.Status || 'Unpaid'}
-                  </td>
+                <tr key={loan.id} style={{background: '#fff', color: '#111'}}>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.id}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.customer?.Full_name || 'Customer'}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Loan-amount'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(Number(loan['Total_repayment'] || 0) - Number(loan['Loan-amount'] || 0))}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Total_repayment'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Weekly_installment'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan.outstanding_balance)}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.Status || 'Unpaid'}</td>
                 </tr>
               ))}
             </tbody>
