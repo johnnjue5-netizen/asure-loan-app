@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabase.js';
 
+const APP_URL = 'https://zippy-brigadeiros-f834b7.netlify.app/';
+
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -127,19 +129,25 @@ export default function App() {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${window.location.origin}/?reset=1`
-      }
-    );
+    setLoading(true);
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage(
-        'Password recovery email sent. Check your inbox and follow the reset link.'
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${APP_URL}?reset=1`
+        }
       );
+
+      if (error) throw error;
+
+      setMessage(
+        'Password recovery email sent. Check your inbox and follow the NEW reset link.'
+      );
+    } catch (err) {
+      setError(err.message || 'Unable to send password reset email.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -353,8 +361,8 @@ export default function App() {
           {error && <p style={{color: '#b00020'}}>{error}</p>}
           {message && <p style={{color: 'green'}}>{message}</p>}
 
-          <button style={buttonStyle} type="submit">
-            {resetMode ? 'Send Reset Email' : 'Login'}
+          <button style={buttonStyle} type="submit" disabled={loading}>
+            {loading ? 'Sending...' : resetMode ? 'Send Reset Email' : 'Login'}
           </button>
 
           <p>
@@ -505,14 +513,14 @@ export default function App() {
               {loans.map(loan => (
                 <tr key={loan.id}
                   style={{background: '#fff', color: '#111'}}>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.id}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.customer?.Full_name || 'Customer'}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Loan-amount'])}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(Number(loan['Total_repayment'] || 0) - Number(loan['Loan-amount'] || 0))}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Total_repayment'])}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Weekly_installment'])}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan.outstanding_balance)}</td>
-                  <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.Status || 'Unpaid'}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{loan.id}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{loan.customer?.Full_name || 'Customer'}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{money(loan['Loan-amount'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{money(Number(loan['Total_repayment'] || 0) - Number(loan['Loan-amount'] || 0))}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{money(loan['Total_repayment'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{money(loan['Weekly_installment'])}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{money(loan.outstanding_balance)}</td>
+                  <td style={{padding: 10, border: '1px solid #ddd', color: '#111'}}>{loan.Status || 'Unpaid'}</td>
                 </tr>
               ))}
             </tbody>
