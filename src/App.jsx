@@ -23,6 +23,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMode, setResetMode] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [loans, setLoans] = useState([]);
@@ -47,12 +48,38 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return;
 
-    supabase.auth.getSession().then(({ data }) => {
+    let mounted = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(
+      window.location.hash.replace(/^#/, '')
+    );
+
+    const isRecoveryUrl =
+      params.get('reset') === '1' ||
+      hashParams.get('type') === 'recovery';
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
       setSession(data.session);
+
+      if (isRecoveryUrl && data.session) {
+        setRecoveryMode(true);
+        setResetMode(false);
+        setMessage('Enter your new password below.');
+      }
     });
 
     const { data: { subscription } } =
       supabase.auth.onAuthStateChange((event, currentSession) => {
+        if (!mounted) return;
+
         setSession(currentSession);
 
         if (event === 'PASSWORD_RECOVERY') {
@@ -63,7 +90,10 @@ export default function App() {
         }
       });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -80,7 +110,8 @@ export default function App() {
     setMessage('');
 
     const { error } = await supabase.auth.signInWithPassword({
-      email, password
+      email: email.trim(),
+      password
     });
 
     if (error) setError(error.message);
@@ -91,14 +122,24 @@ export default function App() {
     setError('');
     setMessage('');
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
-    });
+    if (!email.trim()) {
+      setError('Enter your registered email address.');
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: `${window.location.origin}/?reset=1`
+      }
+    );
 
     if (error) {
       setError(error.message);
     } else {
-      setMessage('Password reset email sent. Check your inbox and follow the link.');
+      setMessage(
+        'Password recovery email sent. Check your inbox and follow the reset link.'
+      );
     }
   }
 
@@ -112,6 +153,11 @@ export default function App() {
       return;
     }
 
+    if (newPassword !== confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({
       password: newPassword
     });
@@ -119,9 +165,15 @@ export default function App() {
     if (error) {
       setError(error.message);
     } else {
-      setMessage('Password changed successfully. You can now continue.');
+      setMessage('Password changed successfully. Please log in with your new password.');
       setRecoveryMode(false);
       setNewPassword('');
+      setConfirmPassword('');
+      setPassword('');
+      await supabase.auth.signOut();
+      setSession(null);
+      setResetMode(false);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
 
@@ -135,7 +187,9 @@ export default function App() {
 
     try {
       const { data, error } = await supabase
-        .from('Loans').select('*').order('id', { ascending: false });
+        .from('Loans')
+        .select('*')
+        .order('id', { ascending: false });
 
       if (error) throw error;
 
@@ -237,14 +291,26 @@ export default function App() {
         }}>
           <h1>Asure Enterprises</h1>
           <h3>Set New Password</h3>
+
           <label>New password</label>
           <input style={inputStyle}
             type="password" minLength="8" required
+            autoComplete="new-password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
           />
+
+          <label>Confirm new password</label>
+          <input style={inputStyle}
+            type="password" minLength="8" required
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+          />
+
           {error && <p style={{color: '#b00020'}}>{error}</p>}
           {message && <p style={{color: 'green'}}>{message}</p>}
+
           <button style={buttonStyle} type="submit">
             Update Password
           </button>
@@ -352,31 +418,39 @@ export default function App() {
           marginTop: 20, maxWidth: 650, boxSizing: 'border-box'
         }}>
           <h2>New Customer and Loan</h2>
+
           <label>Customer full name *</label>
           <input style={inputStyle} name="name"
             value={form.name} onChange={updateForm} required />
+
           <label>Phone number</label>
           <input style={inputStyle} name="phone"
             value={form.phone} onChange={updateForm} type="tel" />
+
           <label>National ID</label>
           <input style={inputStyle} name="nationalId"
             value={form.nationalId} onChange={updateForm} />
+
           <label>Email address</label>
           <input style={inputStyle} name="customerEmail"
             type="email" value={form.customerEmail}
             onChange={updateForm} />
+
           <label>Amount borrowed (KES) *</label>
           <input style={inputStyle} name="amount"
             type="number" min="1" step="0.01"
             value={form.amount} onChange={updateForm} required />
+
           <label>Repayment period (weeks) *</label>
           <input style={inputStyle} name="weeks"
             type="number" min="1" step="1"
             value={form.weeks} onChange={updateForm} required />
+
           <label>Loan date *</label>
           <input style={inputStyle} name="loanDate"
             type="date" value={form.loanDate}
             onChange={updateForm} required />
+
           <label>First repayment date *</label>
           <input style={inputStyle} name="dueDate"
             type="date" value={form.dueDate}
@@ -404,6 +478,7 @@ export default function App() {
         borderRadius: 10, marginTop: 22
       }}>
         <h2>Loan Records ({loans.length})</h2>
+
         {loading && <p>Loading loans...</p>}
         {!loading && loans.length === 0 &&
           <p>No loan records found yet.</p>}
@@ -425,9 +500,11 @@ export default function App() {
                 )}
               </tr>
             </thead>
+
             <tbody>
               {loans.map(loan => (
-                <tr key={loan.id} style={{background: '#fff', color: '#111'}}>
+                <tr key={loan.id}
+                  style={{background: '#fff', color: '#111'}}>
                   <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.id}</td>
                   <td style={{padding: 10, border: '1px solid #ddd'}}>{loan.customer?.Full_name || 'Customer'}</td>
                   <td style={{padding: 10, border: '1px solid #ddd'}}>{money(loan['Loan-amount'])}</td>
